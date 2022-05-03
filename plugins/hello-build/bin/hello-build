@@ -1,0 +1,167 @@
+#!/usr/bin/env sh
+
+set -e
+top_dir="$(cd "$(dirname "$0")" > /dev/null 2>&1 && pwd)"
+script=${0##*/}
+
+version="0.0.1"
+name="hello"
+
+if [ "x$HELLOENV_ROOT" = "x" ]; then
+  echo "ERROR : no HELLOENV_ROOT environment variable" 1>&2
+  exit 1
+fi
+
+do_help()
+{
+  echo "usage : $script [<options>] command"
+}
+
+do_version()
+{
+  echo "$version"
+}
+
+do_fetch()
+{
+  filename="${name}-${targetver}.tar.gz"
+  mkdir -p ${cachedir}
+  if [ ! -e "${cachedir}/$filename" ]; then
+    cwd=$(pwd)
+    cd ${cachedir}
+    wget https://ftp.gnu.org/gnu/${name}/$filename
+    cd ${cwd}
+  fi
+}
+
+do_extract()
+{
+  tar -C $HELLOENV_ROOT/source/ -xf $cachedir/${name}-${targetver}.tar.*
+}
+
+do_patch()
+{
+  # patch
+  cd $srcdir
+  case ${targetver} in
+    * )
+      :
+      ;;
+  esac
+}
+
+do_configure()
+{
+  # configure
+  mkdir -p $builddir
+  cd $builddir
+
+  case ${targetver} in
+    * )
+      if [ ! -e "./Makefile" ]; then
+        sh $srcdir/configure --prefix=$destdir
+      else
+        echo "INFO : skip configure" 1>&2
+      fi
+      ;;
+    * )
+      echo "ERROR : invalid version, ${targetver}" 1>&2
+      exit 1
+      ;;
+  esac
+}
+
+do_build()
+{
+  case ${targetver} in
+    * )
+      make -C $builddir
+      ;;
+  esac
+}
+
+do_install()
+{
+  case ${targetver} in
+    * )
+      make -C $builddir install
+      ;;
+  esac
+}
+
+while [ "$#" -ne 0 ]; do
+  case "$1" in
+    --help | -h )
+      do_help
+      exit 1
+      ;;
+    --version | -v )
+      do_version
+      exit 1
+      ;;
+    * )
+      break
+      ;;
+  esac
+
+  shift
+done
+
+if [ "$#" -eq 0 ]; then
+  do_help
+  exit 1
+fi
+
+cmd=$1
+shift
+
+if [ "$#" -eq 0 ]; then
+  do_help
+  exit 1
+fi
+
+targetver=$1
+shift
+
+if [ -z "$cmd" ] || [ -z "$targetver" ]; then
+  do_help
+  exit 1
+fi
+
+srcdir="$HELLOENV_ROOT/source/${name}-${targetver}"
+builddir="$HELLOENV_ROOT/build/${name}-${targetver}"
+destdir="$HELLOENV_ROOT/versions/${targetver}"
+
+cachedir="$HELLOENV_ROOT/cache"
+
+case "$cmd" in
+  help )
+    do_help
+    exit 1
+    ;;
+  fetch )
+    do_fetch
+    ;;
+  extract )
+    do_extract
+    ;;
+  patch )
+    do_patch
+    ;;
+  configure | config )
+    do_configure
+    ;;
+  build )
+    do_build
+    ;;
+  install )
+    do_install
+    ;;
+  * )
+    echo "invalid command, $cmd"
+    exit 1
+    ;;
+esac
+
+exit 0
+
